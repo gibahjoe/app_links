@@ -1,23 +1,27 @@
 import Cocoa
 import FlutterMacOS
+public class AppLinks {
+  static public let shared = AppLinksMacosPlugin()
 
+  private init() {}
+}
 public class AppLinksMacosPlugin: NSObject, FlutterPlugin, FlutterStreamHandler, FlutterAppLifecycleDelegate {
   private var eventSink: FlutterEventSink?
   private var initialLink: String?
   private var latestLink: String?
 
   public static func register(with registrar: FlutterPluginRegistrar) {
-    let instance = AppLinksMacosPlugin()
+    let instance = AppLinks.shared
 
     let methodChannel = FlutterMethodChannel(name: "com.llfbandit.app_links/messages", binaryMessenger: registrar.messenger)
     registrar.addMethodCallDelegate(instance, channel: methodChannel)
 
     let eventChannel = FlutterEventChannel(name: "com.llfbandit.app_links/events", binaryMessenger: registrar.messenger)
     eventChannel.setStreamHandler(instance)
-    
+
     registrar.addApplicationDelegate(instance)
   }
-  
+
   public func handleWillFinishLaunching(_ notification: Notification) {
     NSAppleEventManager.shared().setEventHandler(
       self,
@@ -35,10 +39,27 @@ public class AppLinksMacosPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
         break
       case "getLatestAppLink":
         result(latestLink)
-        break      
+        break
       default:
         result(FlutterMethodNotImplemented)
         break
+    }
+  }
+
+  // Universal Links
+  public func application(
+    _ application: NSApplication,
+    continue userActivity: NSUserActivity,
+    restorationHandler: @escaping ([NSUserActivityRestoring]) -> Void
+  ) -> Bool {
+ print("Activity Type: \(userActivity.activityType)")
+    switch userActivity.activityType {
+    case NSUserActivityTypeBrowsingWeb:
+      if let url = userActivity.webpageURL {
+        handleLink(link: url.absoluteString)
+      }
+      return false
+    default: return false
     }
   }
 
@@ -66,15 +87,15 @@ public class AppLinksMacosPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
     }
   }
 
-  private func handleLink(link: String) {
+  public func handleLink(link: String) {
     latestLink = link
 
     if (initialLink == nil) {
       initialLink = link
     }
-    
+
     if let _eventSink = eventSink {
       _eventSink(latestLink)
-    }    
+    }
   }
 }
