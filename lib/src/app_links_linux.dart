@@ -8,74 +8,86 @@ class AppLinksPluginLinux extends AppLinksPlatform {
     AppLinksPlatform.instance = AppLinksPluginLinux();
   }
 
-  final _controller = StreamController<String>();
-  final _uris = <String>[];
+  StreamController<String>? _controller;
   GtkApplicationNotifier? _notifier;
+  String? _initialLink;
+  bool _initialLinkSent = false;
+  String? _latestLink;
 
-  @override
-  Future<Uri?> getInitialAppLink() async {
-    _initNotifier();
+  void _init() {
+    _controller ??= StreamController.broadcast()..onListen = _onListen;
 
-    return getInitialAppLinkString().then(
-      (value) => value != null ? Uri.parse(value) : null,
-    );
+    if (_notifier == null) {
+      _notifier = GtkApplicationNotifier();
+      _notifier?.addCommandLineListener((args) {
+        if (args.isNotEmpty) {
+          _send(args.first);
+        }
+      });
+    }
   }
 
   @override
-  Future<String?> getInitialAppLinkString() async {
-    return _uris.isNotEmpty ? _uris.first : null;
+  Future<Uri?> getInitialLink() async {
+    _init();
+
+    if (_initialLink case final link?) {
+      return Uri.parse(link);
+    }
+    return null;
   }
 
   @override
-  Future<Uri?> getLatestAppLink() async {
-    _initNotifier();
+  Future<String?> getInitialLinkString() async {
+    _init();
 
-    return getLatestAppLinkString().then(
-      (value) => value != null ? Uri.parse(value) : null,
-    );
+    return _initialLink;
   }
 
   @override
-  Future<String?> getLatestAppLinkString() async {
-    _initNotifier();
-    return _uris.isNotEmpty ? _uris.last : null;
+  Future<Uri?> getLatestLink() async {
+    _init();
+
+    if (_latestLink case final link?) {
+      return Uri.parse(link);
+    }
+    return null;
+  }
+
+  @override
+  Future<String?> getLatestLinkString() async {
+    _init();
+    return _latestLink;
   }
 
   @override
   Stream<String> get stringLinkStream {
-    _initNotifier();
-    return _controller.stream;
+    _init();
+    return _controller!.stream;
   }
 
   @override
   Stream<Uri> get uriLinkStream {
-    _initNotifier();
-    return _controller.stream.map(Uri.parse);
+    _init();
+    return _controller!.stream.map(Uri.parse);
   }
 
-  @override
-  Stream<String> get allStringLinkStream {
-    _initNotifier();
-    return _controller.stream;
+  void _onListen() {
+    if (!_initialLinkSent && _initialLink != null) {
+      _initialLinkSent = true;
+      _controller!.add(_initialLink!);
+    }
   }
 
-  @override
-  Stream<Uri> get allUriLinkStream {
-    _initNotifier();
-    return _controller.stream.map(Uri.parse);
-  }
+  void _send(String uri) {
+    if (uri.isNotEmpty) {
+      _latestLink = uri;
+      _initialLink ??= uri;
 
-  void _initNotifier() {
-    if (_notifier == null) {
-      _notifier = GtkApplicationNotifier();
-      _notifier?.addCommandLineListener((args) {
-        if (args.isEmpty) {
-          return;
-        }
-        final uri = args.first;
-        _uris.add(uri);
-        _controller.add(uri);
-      });
+      if (_controller!.hasListener) {
+        _initialLinkSent = true;
+        _controller!.add(uri);
+      }
     }
   }
 }

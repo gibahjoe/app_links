@@ -11,6 +11,7 @@ public final class SwiftAppLinksPlugin: NSObject, FlutterPlugin, FlutterStreamHa
   private var eventSink: FlutterEventSink?
   
   private var initialLink: String?
+  private var initialLinkSent = false
   private var latestLink: String?
   
   public static func register(with registrar: FlutterPluginRegistrar) {
@@ -71,6 +72,7 @@ public final class SwiftAppLinksPlugin: NSObject, FlutterPlugin, FlutterStreamHa
     case NSUserActivityTypeBrowsingWeb:
       if let url = userActivity.webpageURL {
         handleLink(url: url)
+        return true
       }
       return false
     default: return false
@@ -85,7 +87,7 @@ public final class SwiftAppLinksPlugin: NSObject, FlutterPlugin, FlutterStreamHa
   ) -> Bool {
     
     handleLink(url: url)
-    return false
+    return true
   }
   
   public func onListen(
@@ -94,6 +96,12 @@ public final class SwiftAppLinksPlugin: NSObject, FlutterPlugin, FlutterStreamHa
   ) -> FlutterError? {
     
     self.eventSink = events
+    
+    if !initialLinkSent && initialLink != nil {
+      initialLinkSent = true
+      events(initialLink!)
+    }
+
     return nil
   }
   
@@ -115,6 +123,7 @@ public final class SwiftAppLinksPlugin: NSObject, FlutterPlugin, FlutterStreamHa
       return
     }
     
+    initialLinkSent = true
     _eventSink(latestLink)
   }
 }
